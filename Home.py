@@ -12,9 +12,39 @@ from langchain.memory import ConversationBufferMemory
 import plotly.express as px
 import pandas as pd
 
-st.set_page_config(page_title="ChatSQL", page_icon="🛢", layout="wide")
-st.header('MyThanks Chatbot')
-st.write('Ask anything about MyThanks!')
+st.set_page_config(page_title="MyThanks Chatbot", page_icon="�", layout="wide")
+st.title('MyThanks Chatbot')
+
+# Styling to hide sidebar, header, and constrain chat width
+st.markdown(
+    """
+    <style>
+        [data-testid="stSidebar"] {
+            display: none;
+        }
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+        header {
+            visibility: hidden;
+        }
+        .block-container {
+            max-width: 800px;
+            padding-top: 2rem;
+            padding-bottom: 10rem;
+        }
+        /* Constrain chat input width and center it */
+        [data-testid="stChatInput"] {
+            max-width: 700px; /* Reduced slightly to make room for button */
+            margin-right: auto;
+            margin-left: auto;
+            left: 0;
+            right: 0;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 class SqlChatbot:
 
@@ -121,7 +151,7 @@ class SqlChatbot:
         with st.sidebar.expander('Database tables', expanded=True):
             st.info('\n- '+'\n- '.join(db.get_usable_table_names()))
 
-        user_query = st.chat_input(placeholder="Ask me anything!")
+        user_query = st.chat_input(placeholder="Message MyThanks Chatbot...")
 
         if user_query:
             st.session_state.messages.append({"role": "user", "content": user_query})
