@@ -11,19 +11,140 @@ from langchain_core.tools import Tool
 from langchain.memory import ConversationBufferMemory
 import plotly.express as px
 import pandas as pd
+from langchain_openai import ChatOpenAI
 
-st.set_page_config(page_title="MyThanks Chatbot", page_icon="🛒", layout="wide")
-st.title('MyThanks Chatbot')
+# Set page config for the Chat page
+st.set_page_config(page_title="MyThanks Chatbot - Chat", page_icon="🛒", layout="wide")
+
+# Styling to refine the chat UI
+st.markdown(
+    """
+    <style>
+        /* Hide default sidebar nav if we want a clean look */
+        [data-testid="stSidebarNav"] {
+            display: none;
+        }
+
+        /* Sidebar Width Adjustment */
+        section[data-testid="stSidebar"] {
+            width: 500px !important;
+            # min-width: 500px !important;
+            # max-width: 500px !important;
+        }
+        
+        /* Sticky Header for Chat Area Only */
+        .main-header {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            color: #EE1C25;
+            padding: 1rem 0;
+            z-index: 99;
+            border-bottom: 2px solid #EE1C25;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+        }
+        .header-title {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .block-container {
+            max-width: 800px;
+            padding-top: 1rem !important; /* Reset padding since header is now in-flow */
+            padding-bottom: 10rem;
+        }
+        /* Constrain chat input width and center it */
+        [data-testid="stChatInput"] {
+            max-width: 700px;
+            margin-right: auto;
+            margin-left: auto;
+            left: 0;
+            right: 0;
+        }
+        /* Coles theme accents */
+        .stChatMessage [data-testid="stMarkdownContainer"] blockquote {
+            border-left-color: #EE1C25;
+        }
+        .stChatInput button {
+            color: #EE1C25 !important;
+        }
+        
+        /* Sidebar Styling */
+        .sidebar-greeting {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            border-bottom: 1px solid #EE1C25;
+            
+            /* 1. Set the border-radius for rounded corners */
+            border-radius: 25px; 
+            
+            /* 2. Set a transparent border. The width determines the border thickness. */
+            border: 5px solid transparent; 
+
+            /* 3. Apply the gradient as a background, clipped to the border area */
+            background: linear-gradient(45deg, #EE1C25, #EE1C25) border-box;
+
+            /* 4. Clip a solid white background (or your page background color) to the padding area, covering the inner part of the gradient */
+            background-clip: padding-box, border-box; 
+            
+            /* Optional: Add padding for content spacing and center text */
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        
+        
+        /* Sidebar Suggestions Styling */
+        [data-testid="stSidebar"] .stButton > button {
+            border: 1px solid #EE1C25 !important;
+            background-color: transparent !important;
+            color: #EE1C25 !important;
+            text-align: left !important;
+            padding: 0.5rem 1rem !important;
+            margin-bottom: 0.2rem !important;
+            transition: all 0.2s ease !important;
+            font-size: 0.9rem !important;
+            line-height: 1.2 !important;
+            width: 100% !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stSidebar"] .stButton > button:hover {
+            background-color: #EE1C25 !important;
+            color: white !important;
+            transform: translateX(5px);
+        }
+        /* Active suggestion style simulation */
+        [data-testid="stSidebar"] .stButton > button:active {
+            background-color: #b3141b !important;
+            color: white !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 class SqlChatbot:
 
     def __init__(self):
-        utils.sync_st_session()
-        self.llm = utils.configure_llm()
+        # We skip calling utils.sync_st_session() as it's causing crashes in this Streamlit version
+        # and localize the LLM configuration to keep the sidebar clean.
+        self.llm = ChatOpenAI(
+            model_name="gpt-4o-mini", 
+            temperature=0, 
+            streaming=True, 
+            api_key=st.secrets.get("OPENAI_API_KEY")
+        )
     
     @st.cache_resource
     def get_db(_self, db_uri):
         if db_uri == 'USE_SAMPLE_DB':
+            # Handle multi-page structure: page is in pages/, assets is in parent
             db_filepath = (Path(__file__).parent.parent / "assets/Chinook.db").absolute()
             db_uri = f"sqlite:////{db_filepath}"
             creator = lambda: sqlite3.connect(f"file:{db_filepath}?mode=ro", uri=True)
@@ -90,37 +211,76 @@ class SqlChatbot:
             )
         return st.session_state.sql_agent
 
-    @utils.enable_chat_history
-    def main(self):
-
-        # User inputs
-        radio_opt = ['Use sample db','Connect to your SQL db']
-        selected_opt = st.sidebar.radio(
-            label='Choose suitable option',
-            options=radio_opt
+    def display_chat_ui(self):
+        """Renders the header first, then the chat history to ensure correct ordering."""
+        # 1. Render Header
+        st.markdown(
+            """
+            <div class="main-header">
+                <h1 class="header-title">🛒 MyThanks Chatbot</h1>
+            </div>
+            """,
+            unsafe_allow_html=True
         )
-        if radio_opt.index(selected_opt) == 1:
-            with st.sidebar.popover(':orange[⚠️ Security note]', use_container_width=True):
-                warning = "Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your chain/agent's needs.\n\nFor more on general security best practices - [read this](https://python.langchain.com/docs/security)."
-                st.warning(warning)
-            db_uri = st.sidebar.text_input(
-                label='Database URI',
-                placeholder='mysql://user:pass@hostname:port/db'
-            )
-        else:
-            db_uri = 'USE_SAMPLE_DB'
+
+        # 2. Handle session state clearing (localized logic from utils)
+        current_page = "SqlChatbot.main"
+        if "current_page" not in st.session_state:
+            st.session_state["current_page"] = current_page
+        if st.session_state["current_page"] != current_page:
+            try:
+                st.cache_resource.clear()
+                del st.session_state["current_page"]
+                del st.session_state["messages"]
+            except:
+                pass
+
+        # 3. Display Chat History
+        if "messages" not in st.session_state:
+            st.session_state["messages"] = [{"role": "assistant", "content": "Please ask me anything about MyThanks!"}]
         
-        if not db_uri:
-            st.error("Please enter database URI to continue!")
-            st.stop()
+        for msg in st.session_state["messages"]:
+            with st.chat_message(msg["role"]):
+                st.write(msg["content"])
+                if "fig" in msg:
+                    st.plotly_chart(msg["fig"], use_container_width=True)
+
+    def main(self):
+        self.display_chat_ui()
+        st.sidebar.markdown('<h1 class="sidebar-greeting" style="text-align: center; color: white;">Hello, User 👋</h1>', unsafe_allow_html=True)
+
+        st.sidebar.divider()
+        # Sidebar suggestions
+        st.sidebar.markdown('<h3 style="text-align: center;">💡 Quick Suggestions</h3>', unsafe_allow_html=True)
+        suggestions = [
+            "Top 5 best-selling albums?",
+            "Most popular music genres?",
+            "Which artist has the most tracks?",
+            "Summary of sales per country",
+            "Trends in invoice totals"
+        ]
         
+        selected_suggestion = None
+        for s in suggestions:
+            # We use a trick to style these buttons specifically
+            if st.sidebar.button(s, key=f"sug_{s}", use_container_width=True):
+                selected_suggestion = s
+
+        st.sidebar.divider()
+
+        # Database Configuration (Hardcoded)
+        db_uri = 'USE_SAMPLE_DB'
         db = self.get_db(db_uri)
         agent = self.get_agent(db)
 
-        with st.sidebar.expander('Database tables', expanded=True):
-            st.info('\n- '+'\n- '.join(db.get_usable_table_names()))
+        if st.sidebar.button("Back to Landing Page", use_container_width=True):
+            st.switch_page("Home.py")
 
         user_query = st.chat_input(placeholder="Message MyThanks Chatbot...")
+        
+        # Override query if suggestion clicked
+        if selected_suggestion:
+            user_query = selected_suggestion
 
         if user_query:
             st.session_state.messages.append({"role": "user", "content": user_query})
