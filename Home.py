@@ -158,10 +158,16 @@ class SqlChatbot:
             st.chat_message("user").write(user_query)
 
             with st.chat_message("assistant"):
-                st_cb = StreamlitCallbackHandler(st.container())
+                # Only show intermediate steps in Dev Mode
+                is_dev_mode = st.secrets.get("GENERAL", {}).get("DEV_MODE", False)
+                callbacks = []
+                if is_dev_mode:
+                    st_cb = StreamlitCallbackHandler(st.container())
+                    callbacks.append(st_cb)
+                
                 result = agent.invoke(
                     {"input": user_query},
-                    {"callbacks": [st_cb]}
+                    {"callbacks": callbacks}
                 )
                 response = result["output"]
                 
