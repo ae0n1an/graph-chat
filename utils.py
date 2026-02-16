@@ -3,7 +3,7 @@ import openai
 import streamlit as st
 from datetime import datetime
 from streamlit.logger import get_logger
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_community.chat_models import ChatOllama
 from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
 
@@ -81,8 +81,26 @@ def choose_custom_openai_key():
         st.stop()
     return model, openai_api_key
 
+def choose_azure_openai_config():
+    with st.sidebar.expander("Azure OpenAI Configuration", expanded=True):
+        azure_api_key = st.text_input("Azure API Key", type="password", key="AZURE_OPENAI_API_KEY_INPUT")
+        azure_endpoint = st.text_input("Azure Endpoint", placeholder="https://your-resource.openai.azure.com/", key="AZURE_OPENAI_ENDPOINT_INPUT")
+        azure_deployment = st.text_input("Deployment Name", key="AZURE_OPENAI_DEPLOYMENT_NAME_INPUT")
+        azure_api_version = st.text_input("API Version", value="2024-02-01", key="AZURE_OPENAI_API_VERSION_INPUT")
+
+    if not (azure_api_key and azure_endpoint and azure_deployment):
+        st.error("Please provide all Azure OpenAI configuration details.")
+        st.stop()
+    
+    return {
+        "api_key": azure_api_key,
+        "azure_endpoint": azure_endpoint,
+        "azure_deployment": azure_deployment,
+        "api_version": azure_api_version
+    }
+
 def configure_llm():
-    available_llms = ["gpt-4o-mini"]
+    available_llms = ["gpt-4o-mini", "Azure OpenAI"]
     llm_opt = st.sidebar.radio(
         label="LLM",
         options=available_llms,
@@ -90,7 +108,28 @@ def configure_llm():
         )
 
     if llm_opt == "gpt-4o-mini":
-        llm = ChatOpenAI(model_name=llm_opt, temperature=0, streaming=True, api_key=st.secrets["OPENAI_API_KEY"])
+        llm = ChatOpenAI(model_name=llm_opt, temperature=0, streaming=True, api_key=st.secrets.get("OPENAI_API_KEY"))
+    elif llm_opt == "Azure OpenAI":
+        # Check secrets first, then fallback to sidebar
+        if all(k in st.secrets for k in ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT_NAME"]):
+            llm = AzureChatOpenAI(
+                azure_deployment=st.secrets["AZURE_OPENAI_DEPLOYMENT_NAME"],
+                openai_api_version=st.secrets.get("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+                azure_endpoint=st.secrets["AZURE_OPENAI_ENDPOINT"],
+                api_key=st.secrets["AZURE_OPENAI_API_KEY"],
+                temperature=0,
+                streaming=True
+            )
+        else:
+            config = choose_azure_openai_config()
+            llm = AzureChatOpenAI(
+                azure_deployment=config["azure_deployment"],
+                openai_api_version=config["api_version"],
+                azure_endpoint=config["azure_endpoint"],
+                api_key=config["api_key"],
+                temperature=0,
+                streaming=True
+            )
     else:
         model, openai_api_key = choose_custom_openai_key()
         llm = ChatOpenAI(model_name=model, temperature=0, streaming=True, api_key=openai_api_key)
