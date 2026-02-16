@@ -11,28 +11,26 @@ logger = get_logger('Langchain-Chatbot')
 
 #decorator
 def enable_chat_history(func):
-    if os.environ.get("OPENAI_API_KEY"):
+    # to clear chat history after swtching chatbot
+    current_page = func.__qualname__
+    if "current_page" not in st.session_state:
+        st.session_state["current_page"] = current_page
+    if st.session_state["current_page"] != current_page:
+        try:
+            st.cache_resource.clear()
+            del st.session_state["current_page"]
+            del st.session_state["messages"]
+        except:
+            pass
 
-        # to clear chat history after swtching chatbot
-        current_page = func.__qualname__
-        if "current_page" not in st.session_state:
-            st.session_state["current_page"] = current_page
-        if st.session_state["current_page"] != current_page:
-            try:
-                st.cache_resource.clear()
-                del st.session_state["current_page"]
-                del st.session_state["messages"]
-            except:
-                pass
-
-        # to show chat history on ui
-        if "messages" not in st.session_state:
-            st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
-        for msg in st.session_state["messages"]:
-            with st.chat_message(msg["role"]):
-                st.write(msg["content"])
-                if "fig" in msg:
-                    st.plotly_chart(msg["fig"], use_container_width=True)
+    # to show chat history on ui
+    if "messages" not in st.session_state:
+        st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+    for msg in st.session_state["messages"]:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+            if "fig" in msg:
+                st.plotly_chart(msg["fig"], use_container_width=True)
 
     def execute(*args, **kwargs):
         func(*args, **kwargs)
@@ -45,6 +43,8 @@ def display_msg(msg, author):
         msg (str): message to display
         author (str): author of the message -user/assistant
     """
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
     st.session_state.messages.append({"role": author, "content": msg})
     st.chat_message(author).write(msg)
 

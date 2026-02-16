@@ -32,4 +32,4 @@ def csv_to_sqlite_pandas(csv_file, db_file, table_name):
         print(f"An error occurred: {e}")
 
 # Example usage:
-csv_to_sqlite_pandas('assets/my_data.csv', 'assets/my_database.db', 'my_thanks')
+csv_to_sqlite_pandas('assets/sheet.csv', 'assets/my_database.db', 'my_thanks')
