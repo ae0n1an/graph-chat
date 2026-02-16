@@ -14,3 +14,4 @@ pypdf==5.1.0
 duckduckgo_search==7.0.1
 pydantic==2.10.6
 plotly==5.18.0
+pandas==2.3.3

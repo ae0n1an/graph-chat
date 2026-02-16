@@ -1,0 +1,35 @@
+import pandas as pd
+import sqlite3
+
+def csv_to_sqlite_pandas(csv_file, db_file, table_name):
+    """
+    Convert a CSV file to an SQLite database table using pandas.
+
+    Args:
+        csv_file (str): Path to the input CSV file.
+        db_file (str): Path to the output SQLite database file (.db).
+        table_name (str): Name for the new table in the database.
+    """
+    try:
+        # Read the CSV file into a pandas DataFrame
+        df = pd.read_csv(csv_file)
+        
+        # Connect to the SQLite database (it will be created if it doesn't exist)
+        conn = sqlite3.connect(db_file)
+        
+        # Write the data to a new SQLite table
+        # if_exists='replace' will drop the table if it already exists and create a new one
+        # index=False prevents pandas from writing the DataFrame index as a column
+        df.to_sql(table_name, conn, if_exists='replace', index=False)
+        
+        # Commit changes and close the connection
+        conn.commit()
+        conn.close()
+        
+        print(f"Successfully converted '{csv_file}' to table '{table_name}' in '{db_file}'")
+    
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Example usage:
+csv_to_sqlite_pandas('assets/my_data.csv', 'assets/my_database.db', 'my_thanks')
