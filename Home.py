@@ -1,185 +1,142 @@
-import utils
-import sqlite3
 import streamlit as st
-from pathlib import Path
-from sqlalchemy import create_engine
 
-from langchain_community.agent_toolkits import create_sql_agent
-from langchain_community.callbacks import StreamlitCallbackHandler
-from langchain_community.utilities.sql_database import SQLDatabase
-from langchain_core.tools import Tool
-from langchain.memory import ConversationBufferMemory
-import plotly.express as px
-import pandas as pd
+# Configure the landing page
+st.set_page_config(page_title="MyThanks Chatbot", page_icon="🛒", layout="wide")
 
-st.set_page_config(page_title="MyThanks Chatbot", page_icon="�", layout="wide")
-st.title('MyThanks Chatbot')
+def render_landing_page():
+    st.markdown(
+        """
+        <style>
+            /* Hide Streamlit elements on landing page */
+            [data-testid="stSidebar"] { display: none; }
+            [data-testid="stSidebarNav"] { display: none; }
+            header { visibility: hidden; }
+            
 
-# Styling to hide sidebar, header, and constrain chat width
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebar"] {
-            display: none;
-        }
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-        header {
-            visibility: hidden;
-        }
-        .block-container {
-            max-width: 800px;
-            padding-top: 2rem;
-            padding-bottom: 10rem;
-        }
-        /* Constrain chat input width and center it */
-        [data-testid="stChatInput"] {
-            max-width: 700px; /* Reduced slightly to make room for button */
-            margin-right: auto;
-            margin-left: auto;
-            left: 0;
-            right: 0;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+            .stApp {
+                background: linear-gradient(135deg, #EE1C25 0%, #b3141b 100%);
+                background-attachment: fixed;
+                overflow: hidden !important;
+            }
+            .block-container {
+                padding: 0 !important;
+                margin: 0 !important;
+                max-width: 100% !important;
+            }
+            .main {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            /* Landing Page Container */
+            .landing-container {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                height: 70vh; /* Reduced height to ensure no scroll */
+                width: 100vw;
+                text-align: center;
+                color: white;
+                font-family: 'Inter', sans-serif;
+                overflow: hidden;
+            }
+            
+            /* Logo Animation */
+            .logo-animation {
+                font-size: 70px; /* Reduced from 100px */
+                margin-bottom: 10px;
+                animation: float 3s ease-in-out infinite;
+                filter: drop-shadow(0 10px 15px rgba(0,0,0,0.3));
+            }
+            
+            @keyframes float {
+                0% { transform: translateY(0px) rotate(0deg); }
+                50% { transform: translateY(-15px) rotate(5deg); }
+                100% { transform: translateY(0px) rotate(0deg); }
+            }
+            
+            /* Title & Text Animations */
+            .title {
+                font-size: 3.2rem; /* Reduced from 4.5rem */
+                font-weight: 900;
+                margin-bottom: 0.5rem;
+                letter-spacing: -1.5px;
+                opacity: 0;
+                animation: fadeInDown 1.2s ease-out forwards;
+                text-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            }
+            
+            .subtitle {
+                font-size: 1.1rem; /* Reduced from 1.4rem */
+                margin-bottom: 2rem;
+                max-width: 500px;
+                line-height: 1.6;
+                opacity: 0;
+                animation: fadeInUp 1.2s ease-out 0.6s forwards;
+            }
+            
+            @keyframes fadeInDown {
+                from { opacity: 0; transform: translateY(-50px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            @keyframes fadeInUp {
+                from { opacity: 0; transform: translateY(50px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            /* Button Styling */
+            .stButton > button {
+                background-color: white !important;
+                color: #EE1C25 !important;
+                font-weight: 800 !important;
+                padding: 1rem 3.5rem !important;
+                border-radius: 50px !important;
+                border: none !important;
+                font-size: 1.3rem !important;
+                transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.2) !important;
+                opacity: 0;
+                animation: fadeIn 1.2s ease-out 1.2s forwards;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+            
+            .stButton > button:hover {
+                transform: scale(1.1) translateY(-5px) !important;
+                box-shadow: 0 15px 35px rgba(0,0,0,0.4) !important;
+                background-color: #f8f8f8 !important;
+            }
+            
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
 
-class SqlChatbot:
-
-    def __init__(self):
-        utils.sync_st_session()
-        self.llm = utils.configure_llm()
+            /* Responsive tweaks */
+            @media (max-width: 768px) {
+                .title { font-size: 3rem; }
+                .subtitle { font-size: 1.1rem; }
+                .logo-animation { font-size: 80px; }
+            }
+        </style>
+        
+        <div class="landing-container">
+            <div class="logo-animation">🛒</div>
+            <h1 class="title">MyThanks Chatbot</h1>
+            <p class="subtitle">Empowering Coles teams with instant data insights and AI-driven analytics.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
     
-    @st.cache_resource
-    def get_db(_self, db_uri):
-        if db_uri == 'USE_SAMPLE_DB':
-            db_filepath = (Path(__file__).parent / "assets/Chinook.db").absolute()
-            db_uri = f"sqlite:////{db_filepath}"
-            creator = lambda: sqlite3.connect(f"file:{db_filepath}?mode=ro", uri=True)
-            db = SQLDatabase(create_engine("sqlite:///", creator=creator))
-        else:
-            db = SQLDatabase.from_uri(database_uri=db_uri)
-        return db
-
-    def get_agent(self, db):
-        if "sql_agent" not in st.session_state:
-            # Define visualization tool
-            def visualize_data(input_str: str):
-                """
-                Creates a Plotly chart from SQL data.
-                Input must be a string in the format: "chart_type|sql_query"
-                Supported chart_types: 'bar', 'pie', 'line'
-                Example: "pie|SELECT Name, Bytes FROM Track LIMIT 10"
-                """
-                try:
-                    if "|" not in input_str:
-                        return "Error: Input must be in 'chart_type|sql_query' format."
-                    
-                    chart_type, query = input_str.split("|", 1)
-                    chart_type = chart_type.strip().lower()
-                    query = query.strip()
-
-                    df = pd.read_sql(query, db._engine)
-                    if df.empty:
-                        return "No data found for visualization."
-                    
-                    x_col = df.columns[0]
-                    y_col = df.columns[1] if len(df.columns) > 1 else None
-                    
-                    if chart_type == "pie":
-                        fig = px.pie(df, names=x_col, values=y_col if y_col else None, title="Data Distribution")
-                    elif chart_type == "line":
-                        fig = px.line(df, x=x_col, y=y_col, title="Trend Analysis")
-                    else: # Default to bar
-                        fig = px.bar(df, x=x_col, y=y_col, title="Comparison Chart")
-                    
-                    st.session_state["cur_fig"] = fig
-                    st.plotly_chart(fig, use_container_width=True)
-                    return f"Successfully rendered a {chart_type} chart."
-                except Exception as e:
-                    return f"Error: {str(e)}"
-
-            visualize_tool = Tool(
-                name="visualize_data",
-                func=visualize_data,
-                description="Use this to create charts. Input: 'chart_type|sql_query'. Types: bar, pie, line. Example: 'pie|SELECT Genre, Count(*) FROM Tracks GROUP BY Genre'"
-            )
-
-            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-            st.session_state.sql_agent = create_sql_agent(
-                llm=self.llm,
-                db=db,
-                extra_tools=[visualize_tool],
-                top_k=10,
-                verbose=False,
-                agent_type="openai-tools",
-                handle_parsing_errors=True,
-                handle_sql_errors=True,
-                memory=memory
-            )
-        return st.session_state.sql_agent
-
-    @utils.enable_chat_history
-    def main(self):
-
-        # User inputs
-        radio_opt = ['Use sample db','Connect to your SQL db']
-        selected_opt = st.sidebar.radio(
-            label='Choose suitable option',
-            options=radio_opt
-        )
-        if radio_opt.index(selected_opt) == 1:
-            with st.sidebar.popover(':orange[⚠️ Security note]', use_container_width=True):
-                warning = "Building Q&A systems of SQL databases requires executing model-generated SQL queries. There are inherent risks in doing this. Make sure that your database connection permissions are always scoped as narrowly as possible for your chain/agent's needs.\n\nFor more on general security best practices - [read this](https://python.langchain.com/docs/security)."
-                st.warning(warning)
-            db_uri = st.sidebar.text_input(
-                label='Database URI',
-                placeholder='mysql://user:pass@hostname:port/db'
-            )
-        else:
-            db_uri = 'USE_SAMPLE_DB'
-        
-        if not db_uri:
-            st.error("Please enter database URI to continue!")
-            st.stop()
-        
-        db = self.get_db(db_uri)
-        agent = self.get_agent(db)
-
-        with st.sidebar.expander('Database tables', expanded=True):
-            st.info('\n- '+'\n- '.join(db.get_usable_table_names()))
-
-        user_query = st.chat_input(placeholder="Message MyThanks Chatbot...")
-
-        if user_query:
-            st.session_state.messages.append({"role": "user", "content": user_query})
-            st.chat_message("user").write(user_query)
-
-            with st.chat_message("assistant"):
-                # Only show intermediate steps in Dev Mode
-                is_dev_mode = st.secrets.get("GENERAL", {}).get("DEV_MODE", False)
-                callbacks = []
-                if is_dev_mode:
-                    st_cb = StreamlitCallbackHandler(st.container())
-                    callbacks.append(st_cb)
-                
-                result = agent.invoke(
-                    {"input": user_query},
-                    {"callbacks": callbacks}
-                )
-                response = result["output"]
-                
-                msg = {"role": "assistant", "content": response}
-                if "cur_fig" in st.session_state:
-                    msg["fig"] = st.session_state.pop("cur_fig")
-                
-                st.session_state.messages.append(msg)
-                st.write(response)
-                utils.print_qa(SqlChatbot, user_query, response)
-
+    # Sign-in button logic
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        if st.button("Sign In to MyThanks", use_container_width=True):
+            st.switch_page("pages/Chat.py")
 
 if __name__ == "__main__":
-    obj = SqlChatbot()
-    obj.main()
+    render_landing_page()
